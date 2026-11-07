@@ -120,6 +120,29 @@ def test_propose_finds_input_batch_by_shape():
         prop.propose(4, [[2]], None)
 
 
+def test_ngram_style_call_reads_ids_from_calling_runner():
+    """vLLM 0.33's V1 runner calls propose(sampled, num_tokens_no_spec, token_ids_cpu,
+    slot_mappings=...) with no request ids; they come from the runner's input_batch."""
+
+    class FakeRunner:
+        def __init__(self, drafter):
+            self.drafter = drafter
+            self.input_batch = SimpleNamespace(req_ids=["g3-r0", "g3-r1"])
+
+        def propose_draft_token_ids(self, sampled, num_tokens, token_ids):
+            return self.drafter.propose(sampled, num_tokens, token_ids, slot_mappings=None)
+
+    prop = SiblingProposer(k=4, sources="sibling", gate=0)
+    runner = FakeRunner(prop)
+    # r1 is ahead in content: after "5 6" it continues "7 8 9"; r0 has just written "5 6".
+    tok = np.array([[1, 5, 6, 0, 0, 0], [1, 5, 6, 7, 8, 9]], dtype=np.int32)
+    drafts = runner.propose_draft_token_ids([[6], [9]], np.array([3, 6]), tok)
+    assert drafts[0] == [7, 8, 9] and prop._runner is runner
+    runner.input_batch.req_ids = ["g3-r1", "g3-r0"]  # rows reordered: mapping follows the runner
+    drafts = runner.propose_draft_token_ids([[9], [6]], np.array([6, 3]), tok[::-1].copy())
+    assert drafts[1] == [7, 8, 9]
+
+
 def test_config_wiring():
     cfg = RolloutConfig(spec_method="custom_class", runner_v2=0, draft_sources="sibling", draft_gate=64,
                         spec_extra='{"foo": 1}')

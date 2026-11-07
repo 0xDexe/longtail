@@ -109,10 +109,16 @@ class SiblingProposer:
     def load_model(self, *args, **kwargs) -> None:
         pass
 
-    # vLLM's call signature for custom proposers is not a stable API, so find the pieces
-    # by shape: the InputBatch (has req_ids + token_ids_cpu), sampled ids (list), k (int).
+    # vLLM's call signature for custom proposers is not a stable API, so find the pieces by
+    # shape. Two forms are handled:
+    #   suffix-style  propose(k, input_batch, sampled_token_ids, ...)
+    #   ngram-style   propose([k,] sampled_token_ids, num_tokens_no_spec, token_ids_cpu, ...)
+    # vLLM 0.33's V1 runner uses the ngram style, which carries no request ids. The rows are
+    # the runner's input_batch rows, so the ids are read from the calling runner's
+    # input_batch.req_ids (found by walking up the stack once, then cached).
     def propose(self, *args, **kwargs) -> list[list[int]]:
         batch = sampled = num_spec = None
+        arrays_1d, arrays_2d = [], []
         for a in list(args) + list(kwargs.values()):
             if batch is None and hasattr(a, "req_ids") and hasattr(a, "token_ids_cpu"):
                 batch = a
@@ -120,15 +126,46 @@ class SiblingProposer:
                 sampled = a
             elif num_spec is None and isinstance(a, int) and not isinstance(a, bool):
                 num_spec = a
+            elif getattr(a, "ndim", None) == 1:
+                arrays_1d.append(a)
+            elif getattr(a, "ndim", None) == 2:
+                arrays_2d.append(a)
         if not self._logged_signature:
             self._log("propose() args: " + ", ".join(type(a).__name__ for a in args)
                       + (f"; kwargs: {sorted(kwargs)}" if kwargs else ""))
             self._logged_signature = True
-        if batch is None:
-            raise TypeError("SiblingProposer.propose: no InputBatch-like argument (needs .req_ids and "
-                            ".token_ids_cpu); vLLM's custom proposer interface may have changed")
-        return self.propose_batch(num_spec, batch.req_ids, batch.token_ids_cpu,
-                                  batch.num_tokens_no_spec, sampled)
+
+        if batch is not None:
+            return self.propose_batch(num_spec, batch.req_ids, batch.token_ids_cpu,
+                                      batch.num_tokens_no_spec, sampled)
+        if sampled is not None and arrays_1d and arrays_2d:
+            req_ids = self._runner_req_ids()
+            if len(req_ids) < len(sampled):
+                raise RuntimeError(f"SiblingProposer: runner has {len(req_ids)} request ids for "
+                                   f"{len(sampled)} rows; row/request mapping is not what we assumed")
+            return self.propose_batch(num_spec, req_ids, arrays_2d[0], arrays_1d[0], sampled)
+        raise TypeError("SiblingProposer.propose: unrecognized arguments; vLLM's custom proposer "
+                        "interface may have changed")
+
+    def _runner_req_ids(self) -> list:
+        runner = getattr(self, "_runner", None)
+        if runner is None:
+            frame = sys._getframe(2)
+            for _ in range(10):
+                if frame is None:
+                    break
+                obj = frame.f_locals.get("self")
+                ib = getattr(obj, "input_batch", None)
+                if obj is not self and ib is not None and hasattr(ib, "req_ids"):
+                    runner = obj
+                    break
+                frame = frame.f_back
+            if runner is None:
+                raise RuntimeError("SiblingProposer: vLLM passed no request ids and no calling runner "
+                                   "with .input_batch.req_ids was found on the stack")
+            self._runner = runner
+            self._log(f"reading request ids from {type(runner).__name__}.input_batch.req_ids")
+        return list(runner.input_batch.req_ids)
 
     def propose_batch(self, num_spec, req_ids, token_ids, num_tokens, sampled) -> list[list[int]]:
         self.step += 1
