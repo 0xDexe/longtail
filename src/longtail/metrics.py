@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, field, fields
 from typing import Callable
 
 
@@ -37,13 +37,25 @@ class RequestTrace:
     finish_reason: str  # "stop" | "length"
     reward: float
     delivered_step: int = -1
+    # Only filled when save_tokens is on; written to tokens.jsonl, not traces.jsonl.
+    prompt_token_ids: list[int] | None = field(default=None, repr=False)
+    token_ids: list[int] | None = field(default=None, repr=False)
 
     @property
     def latency_s(self) -> float:
         return self.finish_t - self.submit_t
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        skip = {"prompt_token_ids", "token_ids"}
+        return {f.name: getattr(self, f.name) for f in fields(self) if f.name not in skip}
+
+    def tokens_dict(self) -> dict:
+        return {
+            "request_id": self.request_id, "delivered_step": self.delivered_step,
+            "submit_step": self.submit_step, "prompt_idx": self.prompt_idx,
+            "sample_idx": self.sample_idx, "finish_reason": self.finish_reason,
+            "prompt_token_ids": self.prompt_token_ids, "token_ids": self.token_ids,
+        }
 
 
 class ConcurrencyMeter:

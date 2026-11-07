@@ -30,9 +30,10 @@ from .runlog import capture_env, tee_output
 
 
 class StepWriter:
-    def __init__(self, run_dir: Path):
+    def __init__(self, run_dir: Path, save_tokens: bool = False):
         self.traces_f = (run_dir / "traces.jsonl").open("w")
         self.steps_f = (run_dir / "steps.jsonl").open("w")
+        self.tokens_f = (run_dir / "tokens.jsonl").open("w") if save_tokens else None
         self.steps: list[dict] = []
 
     def record(self, traces: list[RequestTrace], step: int, t0: float, t1: float,
@@ -40,6 +41,8 @@ class StepWriter:
         stats = step_stats(traces, step, t0, t1, avg_concurrency, capacity)
         for t in traces:
             self.traces_f.write(json.dumps(t.to_dict()) + "\n")
+            if self.tokens_f is not None:
+                self.tokens_f.write(json.dumps(t.tokens_dict()) + "\n")
         self.steps_f.write(json.dumps(stats) + "\n")
         self.traces_f.flush()
         self.steps_f.flush()
@@ -50,6 +53,8 @@ class StepWriter:
     def close(self) -> None:
         self.traces_f.close()
         self.steps_f.close()
+        if self.tokens_f is not None:
+            self.tokens_f.close()
 
 
 async def run_experiment(cfg: RolloutConfig, run_dir: Path) -> dict:
@@ -76,7 +81,7 @@ async def run_experiment(cfg: RolloutConfig, run_dir: Path) -> dict:
         return correctness_reward(text, gold[idx])
 
     warm = [r for p in problems[: cfg.warmup_prompts] for r in make_group(p, -1)]
-    writer = StepWriter(run_dir)
+    writer = StepWriter(run_dir, save_tokens=cfg.save_tokens)
     try:
         if cfg.mode == "barrier":
             engine = BarrierRolloutEngine(cfg, reward_fn)

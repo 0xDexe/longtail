@@ -48,6 +48,7 @@ class RolloutConfig:
     warmup_prompts: int = 8
     seed: int = 0
     output_dir: str = "results"
+    save_tokens: bool = False  # write tokens.jsonl (prompt + output token ids) for offline analysis
 
     @property
     def sequences_per_step(self) -> int:

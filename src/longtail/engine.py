@@ -86,7 +86,10 @@ class RolloutEngineBase:
             if final is None or not final.finished:
                 raise RuntimeError(f"{req.request_id} did not finish")
             completion = final.outputs[0]
+            keep = self.cfg.save_tokens
             return RequestTrace(
+                prompt_token_ids=list(final.prompt_token_ids or []) if keep else None,
+                token_ids=list(completion.token_ids) if keep else None,
                 request_id=req.request_id,
                 prompt_idx=req.prompt_idx,
                 sample_idx=req.sample_idx,
