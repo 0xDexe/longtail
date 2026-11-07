@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "longtail-rl"
+version = "0.1.0"
+description = "Straggler-aware rollout generation for RL post-training of reasoning models"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "vllm>=0.10",
+    "transformers",
+    "datasets",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
