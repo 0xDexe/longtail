@@ -1,0 +1,20 @@
+# Barrier baseline vs continuous refill: same model, data, seed and in-flight capacity.
+# Both runs deliver batches of 64 prompts x 8 samples = 512 complete sequences per step.
+
+[defaults]
+model = "Qwen/Qwen3-1.7B"
+prompts_per_step = 64
+samples_per_prompt = 8
+max_new_tokens = 4096
+max_num_seqs = 512
+num_steps = 6
+summary_skip_steps = 1
+seed = 0
+
+[[run]]
+name = "barrier"
+mode = "barrier"
+
+[[run]]
+name = "refill"
+mode = "refill"

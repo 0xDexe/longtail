@@ -1,0 +1,22 @@
+{
+  "mode": "refill",
+  "steps_total": 4,
+  "steps_used": 3,
+  "wall_s": 406.52010721399955,
+  "tokens_per_s": 2457.5066771844417,
+  "avg_concurrency": 380.4775517633877,
+  "slot_occupancy": 0.9908269577171552,
+  "tail_wait_fraction": 0.20575002160333145,
+  "len_p50": 1424.6666666666667,
+  "len_p99": 8941.819999999992,
+  "truncation_rate": 0.0006510416666666666,
+  "mean_reward": 0.91796875,
+  "staleness_mean": 0.8697916666666666,
+  "staleness_max": 3,
+  "tel_gen_tokens_per_s": 2525.3106688954135,
+  "tel_kv_usage_max": 1.0,
+  "tel_kv_usage_mean": 0.9983545827094119,
+  "tel_preemptions": 5603.666666666667,
+  "tel_running_mean": 165.8468234757077,
+  "tel_waiting_mean": 214.37693322653305
+}

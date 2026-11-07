@@ -1,0 +1,16 @@
+{
+  "mode": "barrier",
+  "steps_total": 6,
+  "steps_used": 5,
+  "wall_s": 231.6863762349996,
+  "tokens_per_s": 3934.7316852762656,
+  "avg_concurrency": 238.26294556837814,
+  "slot_occupancy": 0.46535731556323856,
+  "tail_wait_fraction": 0.11172690925822515,
+  "len_p50": 1411.7,
+  "len_p99": 4096.0,
+  "truncation_rate": 0.098828125,
+  "mean_reward": 0.858203125,
+  "staleness_mean": 0.0,
+  "staleness_max": 0
+}
