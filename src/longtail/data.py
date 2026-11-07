@@ -63,9 +63,12 @@ class PromptSampler:
         self.rng.shuffle(self._order)
         self._pos = 0
 
-    def next_batch(self) -> list[Problem]:
-        if self._pos + self.batch_size > len(self._order):
+    def next_problem(self) -> Problem:
+        if self._pos >= len(self._order):
             self._reshuffle()
-        ids = self._order[self._pos : self._pos + self.batch_size]
-        self._pos += self.batch_size
-        return [self.problems[i] for i in ids]
+        p = self.problems[self._order[self._pos]]
+        self._pos += 1
+        return p
+
+    def next_batch(self) -> list[Problem]:
+        return [self.next_problem() for _ in range(self.batch_size)]

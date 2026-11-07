@@ -7,7 +7,7 @@ name = "longtail-rl"
 version = "0.1.0"
 description = "Straggler-aware rollout generation for RL post-training of reasoning models"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "vllm>=0.10",
     "transformers",

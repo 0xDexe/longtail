@@ -4,53 +4,64 @@
 
 In RL fine-tuning (GRPO, PPO), most wall-clock time goes to *generating* rollouts, not training.
 Reasoning traces have a heavy-tailed length distribution: most finish in a few hundred tokens, a few
-run to the token limit. Because the trainer waits for the whole batch, the slowest 1% of sequences
-set the step time, and the GPU decodes a shrinking, memory-bound batch for most of the step.
+run to the token limit. When the trainer waits for the whole batch, the slowest 1% of sequences set
+the step time, and the GPU decodes a shrinking, memory-bound batch for most of the step.
 
 This project measures that cost and then removes it.
 
-## Status: commit 1 — baseline measurement
+## Scheduling modes
 
-A synchronous-barrier rollout harness (how most RL frameworks generate today) on vLLM, with
-per-sequence timing and a verifiable GSM8K reward.
+| Mode | Behavior |
+|---|---|
+| `barrier` | Submit the whole batch, wait for every sequence (how most RL frameworks work today) |
+| `refill` | Keep the engine full: start a new GRPO group whenever a group's worth of slots frees up. A step is emitted once `prompts_per_step` complete groups exist; long sequences carry over into later steps with bounded, measured staleness |
+
+## Metrics (per step, comparable across modes)
 
 | Metric | Meaning |
 |---|---|
-| `wall_s` | time until the last sequence finishes (what the trainer waits) |
-| `slot_occupancy` | sum of per-sequence active time / (n_seqs × wall_s); low = slots idle waiting on stragglers |
-| `tail_wait_fraction` | share of the step spent after 90% of sequences were already done |
-| `t50_fraction` | when half the batch is done, as a fraction of the step |
-| `len_max_over_p50` | how heavy the length tail is |
-| `truncation_rate` | sequences that hit `max_new_tokens` |
+| `wall_s` | time to deliver one batch of complete groups to the trainer |
+| `tokens_per_s` | output tokens delivered / wall_s |
+| `slot_occupancy` | time-averaged sequences in flight / capacity (1.0 = engine always full) |
+| `tail_wait_fraction` | share of the step spent after 90% of its sequences were done |
+| `staleness_mean/max` | policy versions between submitting and delivering a sequence (barrier = 0) |
+| `len_p50/p99/max`, `truncation_rate`, `mean_reward` | rollout distribution; checks refill doesn't bias toward short answers |
 
-## Quickstart
+## Running on a cluster (SGE / BU SCC)
 
 ```bash
+# login node, once
 uv venv --python 3.12 && source .venv/bin/activate
 uv pip install -e ".[dev]"
-pytest                                   # CPU-only unit tests
+pytest                                 # CPU-only: metrics, reward, queue, and both schedulers on a fake LLM
+python scripts/prefetch.py             # download weights + dataset before the GPU job
 
-# smoke test (~1 min on one GPU)
-python scripts/run_baseline.py --prompts-per-step 8 --num-steps 1 --max-new-tokens 512
-
-# baseline: 64 prompts x 8 samples = 512 sequences/step
-python scripts/run_baseline.py --num-steps 5
+# GPU: one job runs a whole experiment queue
+qsub -v PLAN=experiments/smoke.toml jobs/queue.qsub   # ~5 min sanity check
+qsub jobs/queue.qsub                                   # experiments/commit2.toml: barrier vs refill
+qstat -u $USER
 ```
 
-Outputs go to `results/baseline-<timestamp>/`: `config.json`, `steps.jsonl` (per-step metrics),
-`traces.jsonl` (per-sequence timing, length, reward).
+Each queue writes `results/queue-<timestamp>-<jobid>/`:
+
+```
+plan.toml  status.json  queue.log  comparison.md
+<run>/  config.json  env.json  run.log  steps.jsonl  traces.jsonl  summary.json
+```
+
+Runs execute as separate processes (GPU memory fully released between runs; one crash doesn't stop
+the queue). If the job hits its time limit, `qsub -v RESUME=results/queue-... jobs/queue.qsub`
+re-runs only the unfinished runs. Plans are validated before any GPU time is spent: a typo in a
+key fails immediately.
+
+To add an experiment, add a `[[run]]` block to a plan. Any `RolloutConfig` field can be set.
 
 ## Roadmap
 
 1. ✅ Baseline barrier rollouts + straggler metrics
-2. Throughput-over-time measurement (tokens/s as the batch drains) + plots
-3. Continuous refill: keep the batch full by starting the next prompts as sequences finish
+2. ✅ Experiment queue + autologging; continuous-refill scheduler with staleness tracking
+3. Throughput-over-time measurement (tokens/s as the batch drains) + plots
 4. Partial rollouts: cap per-step generation, pause long traces, resume next step
 5. Minimal GRPO trainer + in-flight weight sync to the inference engine; measure sync latency
-6. Off-policy staleness from 3–5 and its effect on learning curves
+6. Effect of staleness from 2 and 4 on learning curves
 7. Speculative decoding under policy drift: acceptance-rate decay across training steps
-
-## Environment
-
-Record the exact versions you ran with (`pip freeze | grep -E "vllm|torch|transformers"`) and the GPU model
-in every results write-up; vLLM's async API changes between releases.

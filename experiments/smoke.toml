@@ -1,0 +1,17 @@
+# ~5 minutes total. Run this first to make sure everything works before the real queue.
+
+[defaults]
+prompts_per_step = 4
+samples_per_prompt = 4
+max_new_tokens = 512
+max_num_seqs = 64
+num_steps = 2
+warmup_prompts = 2
+
+[[run]]
+name = "barrier"
+mode = "barrier"
+
+[[run]]
+name = "refill"
+mode = "refill"

@@ -1,0 +1,36 @@
+#!/bin/bash -l
+# One GPU job that runs a whole experiment queue.
+#
+#   qsub jobs/queue.qsub                                        # experiments/commit2.toml
+#   qsub -v PLAN=experiments/smoke.toml jobs/queue.qsub         # another plan
+#   qsub -v RESUME=results/queue-<...> jobs/queue.qsub          # finish an interrupted queue
+#
+# Submit from the repo root. Scheduler output goes to logs/; per-run logs to results/queue-*/.
+#$ -P mlresearch
+#$ -N longtail
+#$ -l gpus=1
+#$ -l gpu_c=8.0
+#$ -pe omp 4
+#$ -l h_rt=03:00:00
+#$ -cwd
+#$ -j y
+#$ -o logs/
+#$ -m ea
+
+set -eo pipefail
+echo "job ${JOB_ID} on $(hostname) at $(date)"
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
+
+export WORK=/projectnb/mlresearch/amyman
+export HF_HOME=$WORK/hf
+export TRITON_CACHE_DIR=$WORK/.cache/triton
+export VLLM_CACHE_ROOT=$WORK/.cache/vllm
+export HF_HUB_OFFLINE=1   # weights are prefetched on the login node; don't hit the network mid-job
+
+source .venv/bin/activate
+
+if [[ -n "${RESUME:-}" ]]; then
+    python -m longtail.queue --resume "$RESUME"
+else
+    python -m longtail.queue "${PLAN:-experiments/commit2.toml}"
+fi
