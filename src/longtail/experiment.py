@@ -27,6 +27,7 @@ from .engine import BarrierRolloutEngine, RefillRolloutEngine, RolloutRequest
 from .metrics import RequestTrace, format_stats, step_stats, summarize
 from .reward import correctness_reward
 from .runlog import capture_env, tee_output
+from .telemetry import Telemetry
 
 
 class StepWriter:
@@ -37,8 +38,8 @@ class StepWriter:
         self.steps: list[dict] = []
 
     def record(self, traces: list[RequestTrace], step: int, t0: float, t1: float,
-               avg_concurrency: float, capacity: int) -> dict:
-        stats = step_stats(traces, step, t0, t1, avg_concurrency, capacity)
+               avg_concurrency: float, capacity: int, extra: dict | None = None) -> dict:
+        stats = {**step_stats(traces, step, t0, t1, avg_concurrency, capacity), **(extra or {})}
         for t in traces:
             self.traces_f.write(json.dumps(t.to_dict()) + "\n")
             if self.tokens_f is not None:
@@ -82,12 +83,15 @@ async def run_experiment(cfg: RolloutConfig, run_dir: Path) -> dict:
 
     warm = [r for p in problems[: cfg.warmup_prompts] for r in make_group(p, -1)]
     writer = StepWriter(run_dir, save_tokens=cfg.save_tokens)
+    tel: Telemetry | None = None
     try:
         if cfg.mode == "barrier":
             engine = BarrierRolloutEngine(cfg, reward_fn)
             try:
                 await engine.warmup(warm)
                 print("warmup done", flush=True)
+                tel = Telemetry(cfg.telemetry_interval, run_dir / "telemetry.jsonl")
+                tel.start()
                 for step in range(cfg.num_steps):
                     reqs = [r for p in sampler.next_batch() for r in make_group(p, step)]
                     t0 = time.perf_counter()
@@ -95,19 +99,27 @@ async def run_experiment(cfg: RolloutConfig, run_dir: Path) -> dict:
                     t1 = time.perf_counter()
                     for t in traces:
                         t.delivered_step = step
-                    writer.record(traces, step, t0, t1, engine.meter.average(t0, t1), len(reqs))
+                    writer.record(traces, step, t0, t1, engine.meter.average(t0, t1), len(reqs),
+                                  tel.window(t0, t1))
             finally:
+                if tel:
+                    await tel.stop()
                 engine.shutdown()
         else:
             engine = RefillRolloutEngine(cfg, reward_fn)
             try:
                 await engine.warmup(warm)
                 print("warmup done", flush=True)
+                tel = Telemetry(cfg.telemetry_interval, run_dir / "telemetry.jsonl")
+                tel.start()
                 async for step, traces, t0, t1 in engine.run(
                     cfg.num_steps, lambda v: make_group(sampler.next_problem(), v)
                 ):
-                    writer.record(traces, step, t0, t1, engine.meter.average(t0, t1), engine.capacity)
+                    writer.record(traces, step, t0, t1, engine.meter.average(t0, t1), engine.capacity,
+                                  tel.window(t0, t1))
             finally:
+                if tel:
+                    await tel.stop()
                 engine.shutdown()
     finally:
         writer.close()

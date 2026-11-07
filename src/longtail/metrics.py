@@ -161,6 +161,10 @@ def summarize(steps: list[dict], skip: int = 1) -> dict:
     for k in SUMMARY_KEYS:
         out[k] = sum(s[k] for s in use) / len(use)
     out["staleness_max"] = max(s["staleness_max"] for s in use)
+    tel_keys = sorted({k for s in use for k in s if k.startswith("tel_")})
+    for k in tel_keys:
+        xs = [s[k] for s in use if k in s]
+        out[k] = sum(xs) / len(xs)
     return out
 
 
@@ -171,4 +175,8 @@ def format_stats(s: dict) -> str:
         f"occupancy {s['slot_occupancy']:.2f} | tail-wait {s['tail_wait_fraction']:.2f} | "
         f"stale {s['staleness_mean']:.2f}/{s['staleness_max']} | "
         f"trunc {s['truncation_rate']:.2f} | reward {s['mean_reward']:.2f}"
+        + (f" | preempt {s['tel_preemptions']:.0f}" if "tel_preemptions" in s else "")
+        + (f" | kv max {s['tel_kv_usage_max']:.2f}" if "tel_kv_usage_max" in s else "")
+        + (f" | spec acc {s['tel_spec_acceptance']:.2f}" if "tel_spec_acceptance" in s else "")
+        + (f" | spec tok/draft {s['tel_spec_tokens_per_draft']:.2f}" if "tel_spec_tokens_per_draft" in s else "")
     )

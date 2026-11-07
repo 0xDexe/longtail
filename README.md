@@ -56,6 +56,14 @@ key fails immediately.
 
 To add an experiment, add a `[[run]]` block to a plan. Any `RolloutConfig` field can be set.
 
+## Engine telemetry and speculative decoding
+
+Every run samples vLLM's own metrics once a second (`telemetry.jsonl`) and adds per-step
+preemptions, KV-cache usage, running/waiting sequences, generated tokens/s and, when
+speculative decoding is on, vLLM's measured acceptance to `steps.jsonl` and
+`comparison.md`. Speculative decoding is configured with `spec_method` (e.g. `"ngram"`),
+`spec_k`, `spec_min_n`, `spec_max_n`, passed straight to vLLM's `speculative_config`.
+
 ## Sibling-draft speculative decoding (offline study)
 
 GRPO samples G completions per prompt, and siblings reuse a lot of phrasing at different

@@ -84,11 +84,15 @@ def _stream(cmd: list[str], log_path: Path, prefix: str, qlog: QueueLog) -> int:
         return proc.wait()
 
 
+def _opt(s: dict, key: str, fmt: str) -> str:
+    return format(s[key], fmt) if key in s else "-"
+
+
 def comparison_table(queue_dir: Path, plan: list[dict], status: dict) -> str:
     rows = [
         "| run | mode | status | step time (s) | tok/s | slot occupancy | tail-wait | "
-        "staleness mean/max | reward | speedup |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "staleness mean/max | reward | speedup | preemptions/step | KV max | spec acceptance |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     base = None
     for item in plan:
@@ -96,7 +100,7 @@ def comparison_table(queue_dir: Path, plan: list[dict], status: dict) -> str:
         st = status.get(name, {}).get("state", "pending")
         path = queue_dir / name / "summary.json"
         if not path.exists():
-            rows.append(f"| {name} | {item['params'].get('mode', 'barrier')} | {st} | | | | | | | |")
+            rows.append(f"| {name} | {item['params'].get('mode', 'barrier')} | {st} | | | | | | | | | | |")
             continue
         s = json.loads(path.read_text())
         base = base or s["wall_s"]
@@ -104,7 +108,8 @@ def comparison_table(queue_dir: Path, plan: list[dict], status: dict) -> str:
             f"| {name} | {s['mode']} | {st} | {s['wall_s']:.1f} | {s['tokens_per_s']:.0f} | "
             f"{s['slot_occupancy']:.2f} | {s['tail_wait_fraction']:.2f} | "
             f"{s['staleness_mean']:.2f}/{s['staleness_max']} | {s['mean_reward']:.3f} | "
-            f"{base / s['wall_s']:.2f}x |"
+            f"{base / s['wall_s']:.2f}x | {_opt(s, 'tel_preemptions', '.0f')} | "
+            f"{_opt(s, 'tel_kv_usage_max', '.2f')} | {_opt(s, 'tel_spec_acceptance', '.3f')} |"
         )
     return "\n".join(rows) + "\n\nSpeedup = step time of the first completed run / this run's step time.\n"
 

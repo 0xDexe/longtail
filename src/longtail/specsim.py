@@ -42,6 +42,11 @@ Reported per configuration:
   draft_rate            share of sequence-steps that had any draft
   makespan_reduction    1 - (engine steps until the last sequence of the batch finishes)
                             / (longest sequence length). This is the straggler win.
+
+Repetition report: share of each sequence whose 8-gram already appeared earlier in the same
+sequence, for the longest 10% vs the rest, plus how many sequences end in a loop (>80% of
+their final 2,048 tokens repeated). Tells how much of the tail, and of self-drafting's gain,
+comes from looping text.
 """
 
 from __future__ import annotations
@@ -90,6 +95,35 @@ class NgramIndex:
             return []
         start = plist[i] + len(key)
         return self.tokens[start : min(start + k, avail)]
+
+
+def repeat_fraction(tokens: list[int], n: int = 8) -> float:
+    """Share of n-grams that already occurred earlier in the same token list."""
+    if len(tokens) <= n:
+        return 0.0
+    seen: set[tuple] = set()
+    rep = 0
+    for i in range(n, len(tokens) + 1):
+        g = tuple(tokens[i - n : i])
+        rep += g in seen
+        seen.add(g)
+    return rep / (len(tokens) - n + 1)
+
+
+def repetition_report(gens: list[list[int]], n: int = 8, loop_window: int = 2048,
+                      loop_threshold: float = 0.8) -> dict:
+    by_len = sorted(gens, key=len)
+    cut = max(1, len(by_len) // 10)
+    longest, rest = by_len[-cut:], by_len[:-cut] or by_len
+    looping = [g for g in gens if len(g) >= loop_window and repeat_fraction(g[-loop_window:], n) > loop_threshold]
+    mean = lambda xs: sum(xs) / len(xs) if xs else 0.0  # noqa: E731
+    return {
+        "repeat_frac_longest10pct": mean([repeat_fraction(g, n) for g in longest]),
+        "repeat_frac_rest": mean([repeat_fraction(g, n) for g in rest]),
+        "min_len_longest10pct": len(longest[0]),
+        "looping_sequences": len(looping),
+        "looping_token_share": sum(map(len, looping)) / max(1, sum(map(len, gens))),
+    }
 
 
 def baseline_active(lengths: list[int]) -> list[int]:
@@ -248,6 +282,7 @@ def run(path: str | Path, cfg: SimConfig, workers: int = 0) -> dict:
         }
     return {
         "config": cfg.__dict__,
+        "repetition": repetition_report([gen for j in jobs for gen in j[1]]),
         "n_batches": len(base),
         "n_groups": len(jobs),
         "n_sequences": sum(len(j[1]) for j in jobs),
@@ -269,6 +304,14 @@ def format_table(report: dict) -> str:
             f"| {name} | {r['tokens_per_step']:.3f} | {r['tail_tokens_per_step']:.3f} | "
             f"{r['acceptance']:.3f} | {r['draft_rate']:.3f} | {r['mean_draft_len']:.2f} | "
             f"{r['makespan_reduction'] * 100:.1f}% |"
+        )
+    rep = report.get("repetition")
+    if rep:
+        rows.append(
+            f"\nRepetition (8-gram seen earlier in same sequence): longest 10% (>= "
+            f"{rep['min_len_longest10pct']} tokens) {rep['repeat_frac_longest10pct']:.1%}, rest "
+            f"{rep['repeat_frac_rest']:.1%}; {rep['looping_sequences']} sequences end in a loop "
+            f"({rep['looping_token_share']:.1%} of all tokens)."
         )
     return "\n".join(rows) + "\n"
 

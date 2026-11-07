@@ -42,6 +42,16 @@ class RolloutConfig:
     # Refill mode: max sequences in flight (0 = sequences_per_step, same as barrier)
     max_inflight_seqs: int = 0
 
+    # Speculative decoding, passed to vLLM's speculative_config ("" = off).
+    # "ngram" = vLLM's prompt-lookup drafting from each sequence's own context.
+    spec_method: str = ""
+    spec_k: int = 8  # draft tokens per step
+    spec_min_n: int = 2  # n-gram match length range (ngram method)
+    spec_max_n: int = 4
+
+    # Engine telemetry: sample vLLM's metrics every N seconds (0 = off)
+    telemetry_interval: float = 1.0
+
     # Experiment
     num_steps: int = 5
     summary_skip_steps: int = 1  # steps excluded from summary.json (warm-up / ramp)
@@ -60,6 +70,18 @@ class RolloutConfig:
         cap = self.max_inflight_seqs or self.sequences_per_step
         if cap < self.samples_per_prompt:
             raise ValueError("max_inflight_seqs must fit at least one full group")
+        if self.spec_method and self.spec_k <= 0:
+            raise ValueError("spec_k must be > 0 when spec_method is set")
+        if self.spec_min_n > self.spec_max_n:
+            raise ValueError("spec_min_n must be <= spec_max_n")
+
+    def speculative_config(self) -> dict | None:
+        if not self.spec_method:
+            return None
+        spec = {"method": self.spec_method, "num_speculative_tokens": self.spec_k}
+        if self.spec_method == "ngram":
+            spec.update(prompt_lookup_min=self.spec_min_n, prompt_lookup_max=self.spec_max_n)
+        return spec
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)

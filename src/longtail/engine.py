@@ -54,6 +54,8 @@ class RolloutEngineBase:
             max_num_seqs=self.cfg.max_num_seqs,
             enable_prefix_caching=self.cfg.enable_prefix_caching,
             seed=self.cfg.seed,
+            speculative_config=self.cfg.speculative_config(),
+            disable_log_stats=False,  # keeps vLLM's Prometheus metrics updated for telemetry
         )
         return AsyncLLMEngine.from_engine_args(args)
 

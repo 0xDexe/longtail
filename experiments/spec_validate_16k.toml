@@ -1,0 +1,43 @@
+# 16k-token regime: does real n-gram speculative decoding match the simulator, and what
+# does it do to step time once verification cost is included? Telemetry records
+# preemptions, KV usage and vLLM's own speculative acceptance for every step.
+#
+# Compare tel_spec_acceptance / tel_spec_tokens_per_draft here with the specsim
+# "self/always" row (k=8, n=2..4) on the collect-16k tokens.
+
+[defaults]
+model = "Qwen/Qwen3-1.7B"
+prompts_per_step = 64
+samples_per_prompt = 8
+max_new_tokens = 16384
+max_model_len = 17408
+num_steps = 4
+summary_skip_steps = 1
+seed = 1
+spec_k = 8
+spec_min_n = 2
+spec_max_n = 4
+
+[[run]]
+name = "barrier-cap256"
+mode = "barrier"
+max_num_seqs = 256
+
+[[run]]
+name = "barrier-cap256-ngram"
+mode = "barrier"
+max_num_seqs = 256
+spec_method = "ngram"
+
+[[run]]
+name = "refill-cap384"
+mode = "refill"
+max_num_seqs = 384
+max_inflight_seqs = 384
+
+[[run]]
+name = "refill-cap384-ngram"
+mode = "refill"
+max_num_seqs = 384
+max_inflight_seqs = 384
+spec_method = "ngram"
