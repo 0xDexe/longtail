@@ -1,0 +1,32 @@
+# Does refill win once in-flight sequences fit the KV cache (~310k tokens on L40S)?
+[defaults]
+model = "Qwen/Qwen3-1.7B"
+prompts_per_step = 64
+samples_per_prompt = 8
+max_new_tokens = 4096
+num_steps = 6
+summary_skip_steps = 1
+seed = 0
+
+[[run]]
+name = "barrier-cap256"
+mode = "barrier"
+max_num_seqs = 256
+
+[[run]]
+name = "refill-cap128"
+mode = "refill"
+max_num_seqs = 128
+max_inflight_seqs = 128
+
+[[run]]
+name = "refill-cap256"
+mode = "refill"
+max_num_seqs = 256
+max_inflight_seqs = 256
+
+[[run]]
+name = "refill-cap384"
+mode = "refill"
+max_num_seqs = 384
+max_inflight_seqs = 384
