@@ -1,0 +1,19 @@
+# Record full token ids of realistic long-reasoning rollouts for the sibling-draft study.
+# 2 barrier batches x 512 sequences at a 16k-token limit. Analyze on CPU afterwards:
+#   python -m longtail.specsim results/queue-.../collect-16k/tokens.jsonl
+
+[defaults]
+model = "Qwen/Qwen3-1.7B"
+prompts_per_step = 64
+samples_per_prompt = 8
+max_new_tokens = 16384
+max_model_len = 17408
+max_num_seqs = 512
+num_steps = 2
+summary_skip_steps = 0
+seed = 1
+save_tokens = true
+
+[[run]]
+name = "collect-16k"
+mode = "barrier"

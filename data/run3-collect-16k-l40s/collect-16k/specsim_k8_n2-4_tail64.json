@@ -1,0 +1,76 @@
+{
+  "config": {
+    "k": 8,
+    "min_n": 2,
+    "max_n": 4,
+    "tail_active": 64
+  },
+  "n_batches": 2,
+  "n_groups": 128,
+  "n_sequences": 1024,
+  "results": {
+    "none/always": {
+      "tokens_per_step": 1.0,
+      "tail_tokens_per_step": 1.0,
+      "acceptance": 0.0,
+      "draft_rate": 0.0,
+      "mean_draft_len": 0.0,
+      "makespan_reduction": 0.0,
+      "seq_steps": 2062988
+    },
+    "self/always": {
+      "tokens_per_step": 1.6425926840104654,
+      "tail_tokens_per_step": 1.9496359743040685,
+      "acceptance": 0.16524951488137346,
+      "draft_rate": 0.48962525100841287,
+      "mean_draft_len": 7.942044469596072,
+      "makespan_reduction": 0.5078003354540671,
+      "seq_steps": 1255934
+    },
+    "self/tail": {
+      "tokens_per_step": 1.0730879625150458,
+      "tail_tokens_per_step": 1.9644450545679182,
+      "acceptance": 0.17815361091000842,
+      "draft_rate": 0.051438820106133855,
+      "mean_draft_len": 7.975599150571342,
+      "makespan_reduction": 0.39788198261180935,
+      "seq_steps": 1922478
+    },
+    "sibling/always": {
+      "tokens_per_step": 1.982513799837016,
+      "tail_tokens_per_step": 1.7561459323224393,
+      "acceptance": 0.18618771820174282,
+      "draft_rate": 0.6725661930900871,
+      "mean_draft_len": 7.850551604804913,
+      "makespan_reduction": 0.43930667561290815,
+      "seq_steps": 1040592
+    },
+    "sibling/tail": {
+      "tokens_per_step": 1.0715896707089154,
+      "tail_tokens_per_step": 1.9288573777783768,
+      "acceptance": 0.14331746620571986,
+      "draft_rate": 0.06258473295289861,
+      "mean_draft_len": 7.987376126686918,
+      "makespan_reduction": 0.324880533787523,
+      "seq_steps": 1925166
+    },
+    "both/always": {
+      "tokens_per_step": 2.1443265964567995,
+      "tail_tokens_per_step": 2.215882178804026,
+      "acceptance": 0.20538088598498733,
+      "draft_rate": 0.708840747223689,
+      "mean_draft_len": 7.864480396742884,
+      "makespan_reduction": 0.5603515862417948,
+      "seq_steps": 962068
+    },
+    "both/tail": {
+      "tokens_per_step": 1.0839501411560346,
+      "tail_tokens_per_step": 2.2637927625074155,
+      "acceptance": 0.18650996900036984,
+      "draft_rate": 0.05638044717012757,
+      "mean_draft_len": 7.987651904868411,
+      "makespan_reduction": 0.4250175920451892,
+      "seq_steps": 1903213
+    }
+  }
+}

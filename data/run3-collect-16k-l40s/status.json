@@ -1,0 +1,36 @@
+{
+  "collect-16k": {
+    "state": "done",
+    "started": "2026-11-07T00:04:58",
+    "cmd": [
+      "/projectnb/mlresearch/amartya/longtail/.venv/bin/python",
+      "-m",
+      "longtail.experiment",
+      "--run-dir",
+      "results/queue-20261107-000458-8494471/collect-16k",
+      "--model",
+      "Qwen/Qwen3-1.7B",
+      "--prompts-per-step",
+      "64",
+      "--samples-per-prompt",
+      "8",
+      "--max-new-tokens",
+      "16384",
+      "--max-model-len",
+      "17408",
+      "--max-num-seqs",
+      "512",
+      "--num-steps",
+      "2",
+      "--summary-skip-steps",
+      "0",
+      "--seed",
+      "1",
+      "--save-tokens",
+      "--mode",
+      "barrier"
+    ],
+    "returncode": 0,
+    "duration_s": 860.1
+  }
+}

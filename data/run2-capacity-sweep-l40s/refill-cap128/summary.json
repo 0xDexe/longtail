@@ -1,0 +1,16 @@
+{
+  "mode": "refill",
+  "steps_total": 6,
+  "steps_used": 5,
+  "wall_s": 117.8864888174052,
+  "tokens_per_s": 7706.000513140745,
+  "avg_concurrency": 124.5242043959092,
+  "slot_occupancy": 0.9728453468430406,
+  "tail_wait_fraction": 0.15813918522742684,
+  "len_p50": 1400.5,
+  "len_p99": 4096.0,
+  "truncation_rate": 0.0859375,
+  "mean_reward": 0.87265625,
+  "staleness_mean": 0.3125,
+  "staleness_max": 1
+}
