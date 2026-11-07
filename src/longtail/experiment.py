@@ -66,14 +66,16 @@ async def run_experiment(cfg: RolloutConfig, run_dir: Path) -> dict:
     gold = {p.idx: p.answer for p in problems}
     sampler = PromptSampler(problems, cfg.prompts_per_step, seed=cfg.seed)
     counter = itertools.count()
+    group_ids = itertools.count()
 
     def make_group(problem: Problem, version: int) -> list[RolloutRequest]:
         prompt = build_prompt(tokenizer, problem)
+        gid = next(group_ids)  # "g{gid}-" prefix lets the sibling drafter find a request's siblings
         reqs = []
         for k in range(cfg.samples_per_prompt):
             n = next(counter)
             reqs.append(RolloutRequest(
-                request_id=f"r{n}", submit_step=version, prompt_idx=problem.idx,
+                request_id=f"g{gid}-r{n}", submit_step=version, prompt_idx=problem.idx,
                 sample_idx=k, prompt=prompt, seed=cfg.seed * 1_000_003 + n,
             ))
         return reqs
@@ -141,6 +143,7 @@ def main() -> None:
     if not os.environ.get("LONGTAIL_QUEUE"):  # the queue already captures everything
         tee_output(run_dir / "run.log")
 
+    os.environ.update(cfg.engine_env())  # before vLLM starts; inherited by the engine-core process
     (run_dir / "config.json").write_text(json.dumps(cfg.to_dict(), indent=2))
     env = capture_env()
     (run_dir / "env.json").write_text(json.dumps(env, indent=2))

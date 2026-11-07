@@ -1,0 +1,32 @@
+# ~10 minutes. Checks that the custom drafter loads under vLLM's V1 runner and drafts,
+# before spending hours on the 16k plan. Look for "[longtail.drafter] propose() args:"
+# and non-zero "spec acceptance" in the log.
+
+[defaults]
+prompts_per_step = 4
+samples_per_prompt = 4
+max_new_tokens = 512
+max_num_seqs = 64
+num_steps = 2
+warmup_prompts = 2
+summary_skip_steps = 0
+runner_v2 = 0
+spec_k = 8
+
+[[run]]
+name = "v1-nospec"
+mode = "barrier"
+
+[[run]]
+name = "v1-both-always"
+mode = "barrier"
+spec_method = "custom_class"
+draft_sources = "both"
+draft_gate = 0
+
+[[run]]
+name = "v1-both-gated"
+mode = "barrier"
+spec_method = "custom_class"
+draft_sources = "both"
+draft_gate = 8
