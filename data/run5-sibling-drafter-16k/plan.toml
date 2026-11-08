@@ -1,0 +1,59 @@
+# Head-to-head at the 16k limit, all on vLLM's V1 runner (custom drafters need it), same
+# prompts and seed in every run so steps can be compared pairwise.
+#
+#   v1-nospec        baseline
+#   v1-self-gated    our drafter, own context only, tail only: what vLLM's n-gram would do if gated
+#   v1-both-gated    our method: own context + siblings, tail only
+#   v1-both-always   same, never gated: cost of verifying drafts during the bulk phase
+#   v1-suffix        suffix decoding (Arctic Inference), needs `uv pip install arctic-inference`
+#   v2-ngram-sched   vLLM's own n-gram with its batch-size schedule (V2 runner only), reference
+#
+# 6 runs x ~40 min. Submit with h_rt=06:00:00; resume with RESUME= if it runs out.
+
+[defaults]
+model = "Qwen/Qwen3-1.7B"
+prompts_per_step = 64
+samples_per_prompt = 8
+max_new_tokens = 16384
+max_model_len = 17408
+max_num_seqs = 256
+num_steps = 6
+summary_skip_steps = 1
+seed = 1
+mode = "barrier"
+runner_v2 = 0
+spec_k = 8
+spec_min_n = 2
+spec_max_n = 4
+
+[[run]]
+name = "v1-nospec"
+
+[[run]]
+name = "v1-self-gated"
+spec_method = "custom_class"
+draft_sources = "self"
+draft_gate = 64
+
+[[run]]
+name = "v1-both-gated"
+spec_method = "custom_class"
+draft_sources = "both"
+draft_gate = 64
+
+[[run]]
+name = "v1-both-always"
+spec_method = "custom_class"
+draft_sources = "both"
+draft_gate = 0
+
+[[run]]
+name = "v1-suffix"
+spec_method = "suffix"
+spec_k = 16
+
+[[run]]
+name = "v2-ngram-sched"
+runner_v2 = 1
+spec_method = "ngram"
+spec_extra = '{"num_speculative_tokens_per_batch_size": [[1, 64, 8], [65, 512, 0]]}'

@@ -1,0 +1,22 @@
+{
+  "mode": "barrier",
+  "steps_total": 6,
+  "steps_used": 5,
+  "wall_s": 365.72528224801647,
+  "tokens_per_s": 2730.211669904281,
+  "avg_concurrency": 157.4637821507367,
+  "slot_occupancy": 0.3075464495131576,
+  "tail_wait_fraction": 0.4088847617807018,
+  "len_p50": 1370.5,
+  "len_p99": 8008.513999999994,
+  "truncation_rate": 0.00078125,
+  "mean_reward": 0.93515625,
+  "staleness_mean": 0.0,
+  "staleness_max": 0,
+  "tel_gen_tokens_per_s": 2730.249927485704,
+  "tel_kv_usage_max": 0.9128554593431367,
+  "tel_kv_usage_mean": 0.5630556273503917,
+  "tel_preemptions": 127.2,
+  "tel_running_mean": 118.7001716264567,
+  "tel_waiting_mean": 38.38846158388729
+}

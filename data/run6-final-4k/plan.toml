@@ -1,0 +1,31 @@
+# Final comparison, 4k-token limit (vLLM default runner). ~1.5 h.
+#   barrier-512      naive default: whole batch in flight, KV thrashes
+#   refill-fixed384  best hand-tuned setting from the capacity sweep (run2)
+#   refill-adaptive  KV-aware admission, no tuning: should match refill-fixed384
+
+[defaults]
+model = "Qwen/Qwen3-1.7B"
+prompts_per_step = 64
+samples_per_prompt = 8
+max_new_tokens = 4096
+num_steps = 8
+summary_skip_steps = 1
+seed = 0
+
+[[run]]
+name = "barrier-512"
+mode = "barrier"
+max_num_seqs = 512
+
+[[run]]
+name = "refill-fixed384"
+mode = "refill"
+max_num_seqs = 384
+max_inflight_seqs = 384
+
+[[run]]
+name = "refill-adaptive"
+mode = "refill"
+max_num_seqs = 512
+max_inflight_seqs = 512
+admission = "adaptive"

@@ -1,0 +1,43 @@
+# Final comparison, 16k-token limit (vLLM default runner). ~4.5 h, submit with h_rt=06:00:00.
+#   barrier-cap256              best fixed barrier setting so far
+#   barrier-cap256-ngram-sched  + vLLM's gated n-gram speculation (clean answer to the 1.27x)
+#   refill-fixed384             the 4k winner, which thrashed here (5,604 preemptions/step)
+#   refill-adaptive             same controller and settings as final_4k, no retuning
+
+[defaults]
+model = "Qwen/Qwen3-1.7B"
+prompts_per_step = 64
+samples_per_prompt = 8
+max_new_tokens = 16384
+max_model_len = 17408
+num_steps = 8
+summary_skip_steps = 1
+seed = 1
+
+[[run]]
+name = "barrier-cap256"
+mode = "barrier"
+max_num_seqs = 256
+
+[[run]]
+name = "barrier-cap256-ngram-sched"
+mode = "barrier"
+max_num_seqs = 256
+spec_method = "ngram"
+spec_k = 8
+spec_min_n = 2
+spec_max_n = 4
+spec_extra = '{"num_speculative_tokens_per_batch_size": [[1, 64, 8], [65, 512, 0]]}'
+
+[[run]]
+name = "refill-fixed384"
+mode = "refill"
+max_num_seqs = 384
+max_inflight_seqs = 384
+
+[[run]]
+name = "refill-adaptive"
+mode = "refill"
+max_num_seqs = 512
+max_inflight_seqs = 512
+admission = "adaptive"
