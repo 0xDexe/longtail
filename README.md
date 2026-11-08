@@ -114,6 +114,16 @@ qsub -l h_rt=00:30:00 -v PLAN=experiments/drafter_smoke.toml jobs/queue.qsub
 qsub -l h_rt=06:00:00 -v PLAN=experiments/drafter_16k.toml jobs/queue.qsub
 ```
 
+## Report
+
+```bash
+uv pip install matplotlib
+python -m longtail.report results/queue-<4k> results/queue-<16k> data/run2-capacity-sweep-l40s --out report
+```
+Writes `report/summary.md` (mean ± sd over measured steps per run, speedup vs the first run in
+each queue) and per-queue charts: throughput, preemptions per step, and a timeline of sequences
+decoding and KV usage.
+
 ## Roadmap
 
 1. ✅ Baseline barrier rollouts + straggler metrics
