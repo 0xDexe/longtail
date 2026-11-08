@@ -114,11 +114,16 @@ async def run_experiment(cfg: RolloutConfig, run_dir: Path) -> dict:
                 print("warmup done", flush=True)
                 tel = Telemetry(cfg.telemetry_interval, run_dir / "telemetry.jsonl")
                 tel.start()
+                engine.signal_fn = tel.current
                 async for step, traces, t0, t1 in engine.run(
                     cfg.num_steps, lambda v: make_group(sampler.next_problem(), v)
                 ):
+                    extra = tel.window(t0, t1)
+                    if engine.adaptive:
+                        extra["adm_cap_mean"] = engine.cap_meter.average(t0, t1)
+                        extra.update({f"adm_{k}": v for k, v in engine.controller.decisions.items()})
                     writer.record(traces, step, t0, t1, engine.meter.average(t0, t1), engine.capacity,
-                                  tel.window(t0, t1))
+                                  extra)
             finally:
                 if tel:
                     await tel.stop()

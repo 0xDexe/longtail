@@ -56,6 +56,20 @@ key fails immediately.
 
 To add an experiment, add a `[[run]]` block to a plan. Any `RolloutConfig` field can be set.
 
+## Adaptive KV-aware admission
+
+The best fixed in-flight cap depends on the output-length limit: 384 was best at 4k and
+caused 5,604 preemptions per step at 16k. `admission = "adaptive"` (refill mode) replaces the
+fixed cap with an AIMD controller fed by vLLM's live KV usage and preemption counter
+(`longtail.admission`): cut the cap by 30% on any preemption, step down one group above 95% KV,
+step up one group when KV is below `kv_target` and the cap is what's limiting admission.
+`max_inflight_seqs` becomes the upper bound. Per-step `cap` and `tail tok/s` are logged.
+
+```bash
+qsub -l h_rt=02:30:00 -v PLAN=experiments/final_4k.toml  jobs/queue.qsub
+qsub -l h_rt=06:00:00 -v PLAN=experiments/final_16k.toml jobs/queue.qsub
+```
+
 ## Engine telemetry and speculative decoding
 
 Every run samples vLLM's own metrics once a second (`telemetry.jsonl`) and adds per-step

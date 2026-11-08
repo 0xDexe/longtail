@@ -10,6 +10,9 @@ tel_waiting_mean       sequences queued (admitted by us, not yet scheduled by vL
 tel_gen_tokens_per_s   all tokens generated in the window, delivered or not
 tel_spec_acceptance    accepted / drafted tokens (speculative decoding only)
 tel_spec_tokens_per_draft  accepted tokens per verification (speculative decoding only)
+tel_tail_tok_s         generated tokens/s over intervals with <= tail_running sequences
+                       decoding: tail throughput, much less sensitive than step time to which
+                       sequence happens to be longest
 
 Metric names drift across vLLM releases, so fields are matched by suffix and missing ones
 are simply omitted. If the metrics reader can't be imported, telemetry turns itself off and
@@ -43,8 +46,10 @@ def _strip(name: str) -> str:
 
 class Telemetry:
     def __init__(self, interval: float = 1.0, path: str | Path | None = None,
-                 snapshot: Snapshot | None = None, clock: Callable[[], float] = time.perf_counter):
+                 snapshot: Snapshot | None = None, clock: Callable[[], float] = time.perf_counter,
+                 tail_running: int = 64):
         self.interval = interval
+        self.tail_running = tail_running
         self.clock = clock
         self._snap = snapshot if snapshot is not None else (_vllm_snapshot() if interval > 0 else None)
         self.samples: list[tuple[float, dict[str, float]]] = []
@@ -102,6 +107,22 @@ class Telemetry:
             self._f.close()
             self._f = None
 
+    def current(self) -> dict | None:
+        """Fresh reading for the admission controller: kv, preemptions (total), waiting, running."""
+        if not self.enabled:
+            return None
+        self.sample()
+        v = self.samples[-1][1]
+        names = {
+            "kv": self._find("kv_cache_usage_perc", "gpu_cache_usage_perc"),
+            "preemptions": self._find("num_preemptions"),
+            "waiting": self._find("num_requests_waiting"),
+            "running": self._find("num_requests_running"),
+        }
+        if names["kv"] is None:
+            return None
+        return {k: v.get(n, 0.0) for k, n in names.items() if n}
+
     def _find(self, *suffixes: str) -> str | None:
         for suf in suffixes:
             for name in self.kinds:
@@ -151,6 +172,17 @@ class Telemetry:
         gen = self._find("generation_tokens")
         if gen:
             out["tel_gen_tokens_per_s"] = delta(gen) / (t1 - t0)
+        run_name = self._find("num_requests_running")
+        if gen and run_name:
+            pts = [(t, v) for t, v in self.samples if t0 <= t <= t1]
+            tok = dt = 0.0
+            for (ta, va), (tb, vb) in zip(pts, pts[1:]):
+                if va.get(run_name, 1e9) <= self.tail_running:
+                    tok += vb.get(gen, 0.0) - va.get(gen, 0.0)
+                    dt += tb - ta
+            if dt > 0:
+                out["tel_tail_tok_s"] = tok / dt
+                out["tel_tail_time_frac"] = dt / (t1 - t0)
         acc = self._find("spec_decode_num_accepted_tokens")
         drafted = self._find("spec_decode_num_draft_tokens")
         drafts = self._find("spec_decode_num_drafts")

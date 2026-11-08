@@ -42,6 +42,12 @@ class RolloutConfig:
 
     # Refill mode: max sequences in flight (0 = sequences_per_step, same as barrier)
     max_inflight_seqs: int = 0
+    # Refill admission: "fixed" = max_inflight_seqs; "adaptive" = KV-aware controller that
+    # moves the cap between one group and max_inflight_seqs (see longtail.admission)
+    admission: str = "fixed"
+    kv_target: float = 0.85
+    adaptive_start: int = 128  # starting cap for adaptive admission
+    admission_interval: float = 0.5  # controller tick, seconds
 
     # Speculative decoding, passed to vLLM's speculative_config ("" = off).
     # "ngram" = vLLM's prompt-lookup drafting from each sequence's own context.
@@ -80,6 +86,10 @@ class RolloutConfig:
             raise ValueError("spec_k must be > 0 when spec_method is set")
         if self.spec_min_n > self.spec_max_n:
             raise ValueError("spec_min_n must be <= spec_max_n")
+        if self.admission not in ("fixed", "adaptive"):
+            raise ValueError("admission must be fixed|adaptive")
+        if self.admission == "adaptive" and (self.mode != "refill" or self.telemetry_interval <= 0):
+            raise ValueError("adaptive admission needs mode = refill and telemetry on")
         if self.draft_sources not in ("self", "sibling", "both"):
             raise ValueError("draft_sources must be self|sibling|both")
         if self.spec_method == "custom_class" and self.runner_v2 == 1:

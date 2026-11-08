@@ -87,3 +87,20 @@ def test_repetition():
     rep = repetition_report([list(range(i, i + 300)) for i in range(9)] + [loop])
     assert rep["looping_sequences"] == 1
     assert rep["repeat_frac_longest10pct"] > 0.8 > rep["repeat_frac_rest"]
+
+
+def test_tail_throughput_and_current():
+    state = dict(pre=0, gen=0, drafted=0, acc=0, drafts=0, kv=0.5, run=200)
+    now = [0.0]
+    tel = Telemetry(1.0, snapshot=make_fake(state), clock=lambda: now[0], tail_running=64)
+    tel.sample()
+    # 2 s of bulk (200 running, 1000 tok/s), then 2 s of tail (30 running, 100 tok/s)
+    for t, run, rate in [(1, 200, 1000), (2, 30, 1000), (3, 30, 100), (4, 30, 100)]:
+        now[0] = t
+        state.update(gen=state["gen"] + rate, run=run)
+        tel.sample()
+    w = tel.window(0, 4)
+    assert w["tel_tail_tok_s"] == pytest.approx(100.0)  # intervals starting with <= 64 running
+    assert w["tel_tail_time_frac"] == pytest.approx(0.5)
+    cur = tel.current()
+    assert cur["kv"] == 0.5 and cur["running"] == 30 and "preemptions" in cur

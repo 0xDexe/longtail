@@ -18,6 +18,7 @@ import time
 from dataclasses import dataclass
 from typing import AsyncIterator, Callable
 
+from .admission import AdmissionController
 from .config import RolloutConfig
 from .metrics import ConcurrencyMeter, RequestTrace
 
@@ -129,7 +130,19 @@ class BarrierRolloutEngine(RolloutEngineBase):
 class RefillRolloutEngine(RolloutEngineBase):
     def __init__(self, cfg: RolloutConfig, reward_fn: RewardFn):
         super().__init__(cfg, reward_fn)
-        self.capacity = cfg.max_inflight_seqs or cfg.sequences_per_step
+        self.capacity = cfg.max_inflight_seqs or cfg.sequences_per_step  # hard upper bound
+        g = cfg.samples_per_prompt
+        self.adaptive = cfg.admission == "adaptive"
+        self.cap = self.capacity
+        self.controller: AdmissionController | None = None
+        if self.adaptive:
+            start = max(g, min(self.capacity, cfg.adaptive_start) // g * g)
+            self.controller = AdmissionController(
+                cap=start, cap_min=g, cap_max=self.capacity, step=g, kv_target=cfg.kv_target
+            )
+            self.cap = start
+        self.cap_meter = ConcurrencyMeter()  # time-weighted record of the admission cap
+        self.signal_fn: Callable[[], dict | None] | None = None  # set to Telemetry.current
         self._make_group: GroupFactory | None = None
         self._version = 0
         self._stopping = True
@@ -140,7 +153,7 @@ class RefillRolloutEngine(RolloutEngineBase):
         if self._stopping or self._make_group is None:
             return
         g = self.cfg.samples_per_prompt
-        while self.meter.active + g <= self.capacity:
+        while self.meter.active + g <= self.cap:
             reqs = self._make_group(self._version)
             self.meter.add(len(reqs))
             task = asyncio.create_task(self._run_group(reqs))
@@ -161,6 +174,23 @@ class RefillRolloutEngine(RolloutEngineBase):
     def _on_sequence_done(self) -> None:
         self._fill()
 
+    async def _control_loop(self) -> None:
+        warned = False
+        while not self._stopping:
+            await asyncio.sleep(self.cfg.admission_interval)
+            sig = self.signal_fn() if self.signal_fn else None
+            if not sig:
+                if not warned:
+                    print("adaptive admission: no KV signal, holding current cap", flush=True)
+                    warned = True
+                continue
+            new = self.controller.update(sig.get("kv", 0.0), sig.get("preemptions", 0.0),
+                                         sig.get("waiting", 0.0), self.meter.active)
+            if new != self.cap:
+                self.cap_meter.add(new - self.cap)
+                self.cap = new
+            self._fill()
+
     async def run(
         self, num_steps: int, make_group: GroupFactory
     ) -> AsyncIterator[tuple[int, list[RequestTrace], float, float]]:
@@ -170,6 +200,8 @@ class RefillRolloutEngine(RolloutEngineBase):
         self._done = asyncio.Queue()
         self._version = 0
         self._stopping = False
+        self.cap_meter.add(self.cap - self.cap_meter.active)
+        control = asyncio.create_task(self._control_loop()) if self.adaptive else None
         step_start = time.perf_counter()
         self._fill()
         try:
@@ -189,6 +221,9 @@ class RefillRolloutEngine(RolloutEngineBase):
                 step_start = step_end
         finally:
             self._stopping = True
+            if control:
+                control.cancel()
+                await asyncio.gather(control, return_exceptions=True)
             for t in list(self._tasks):
                 t.cancel()
             await asyncio.gather(*list(self._tasks), return_exceptions=True)
